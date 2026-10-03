@@ -1,0 +1,206 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Blind Pilot",
+        "description": "Shared inputs for all blinds. Add each blind afterwards from the integration page.",
+        "data": {
+          "weather_entity": "Weather",
+          "outdoor_temp_entity": "Outdoor temperature",
+          "lux_entity": "Outdoor light sensor",
+          "lux_sunny": "Light level that counts as sunny",
+          "battery_soc_entity": "Solar battery charge",
+          "throttle_soc": "Battery charge at which the inverter throttles the panels",
+          "start_time": "Active from",
+          "end_time": "Active until",
+          "hold_hours": "Pause after a manual move",
+          "min_move": "Smallest automatic move",
+          "min_interval": "Shortest time between automatic moves"
+        },
+        "data_description": {
+          "weather_entity": "Supplies today's forecast high and a cloud-cover fallback.",
+          "outdoor_temp_entity": "Optional. Raises the day's expected high when it reads above the forecast.",
+          "lux_entity": "Optional. When set, it replaces solar panel power as the sun sensor.",
+          "lux_sunny": "For a sky-facing sensor with the sun high. Scaled down automatically when the sun is low.",
+          "battery_soc_entity": "Optional. Needed when the inverter cannot export, so a full battery makes panel power read low.",
+          "start_time": "Blinds are never moved before this time.",
+          "end_time": "Blinds are never moved after this time."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Blind Pilot is already set up. Add blinds from its integration page."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Blind Pilot shared inputs",
+        "data": {
+          "weather_entity": "Weather",
+          "outdoor_temp_entity": "Outdoor temperature",
+          "lux_entity": "Outdoor light sensor",
+          "lux_sunny": "Light level that counts as sunny",
+          "battery_soc_entity": "Solar battery charge",
+          "throttle_soc": "Battery charge at which the inverter throttles the panels",
+          "start_time": "Active from",
+          "end_time": "Active until",
+          "hold_hours": "Pause after a manual move",
+          "min_move": "Smallest automatic move",
+          "min_interval": "Shortest time between automatic moves"
+        },
+        "data_description": {
+          "weather_entity": "Supplies today's forecast high and a cloud-cover fallback.",
+          "outdoor_temp_entity": "Optional. Raises the day's expected high when it reads above the forecast.",
+          "lux_entity": "Optional. When set, it replaces solar panel power as the sun sensor.",
+          "lux_sunny": "For a sky-facing sensor with the sun high. Scaled down automatically when the sun is low.",
+          "battery_soc_entity": "Optional. Needed when the inverter cannot export, so a full battery makes panel power read low.",
+          "start_time": "Blinds are never moved before this time.",
+          "end_time": "Blinds are never moved after this time."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "blind": {
+      "initiate_flow": {
+        "user": "Add blind"
+      },
+      "entry_type": "Blind",
+      "step": {
+        "user": {
+          "title": "Add blind",
+          "data": {
+            "name": "Name",
+            "cover_entity": "Blind",
+            "azimuth": "Direction the glass faces",
+            "glass_height": "Glass height",
+            "overhang": "Overhang depth",
+            "patch_depth": "How far the sun may reach into the room",
+            "min_position": "Lowest position when shading",
+            "dusk_lower": "Lower when the sun goes down",
+            "wait_for_hand_open": "Wait until it is raised by hand each day",
+            "room_temp_entity": "Room temperature",
+            "door_entity": "Door or window contact",
+            "pv_entity": "Solar panel power used as sun sensor",
+            "pv_peak": "Clear-sky peak of those panels",
+            "pv_azimuth": "Direction those panels face",
+            "pv_tilt": "Tilt of those panels"
+          },
+          "data_description": {
+            "azimuth": "Compass bearing: 90 is east, 180 south, 225 south-west.",
+            "glass_height": "From the floor to the top of the glass.",
+            "overhang": "How far a fixed overhang at the top of the glass sticks out. 0 for none.",
+            "patch_depth": "Used on days when the room is comfortable and only glare needs limiting.",
+            "min_position": "0 lets the blind close fully, which suits see-through fabric.",
+            "wait_for_hand_open": "Off lets the blind be raised at the start of the active hours.",
+            "door_entity": "Optional. The blind is not moved while this is open.",
+            "pv_entity": "Optional. Pick the string that faces most like this window."
+          }
+        },
+        "reconfigure": {
+          "title": "Edit blind",
+          "data": {
+            "name": "Name",
+            "cover_entity": "Blind",
+            "azimuth": "Direction the glass faces",
+            "glass_height": "Glass height",
+            "overhang": "Overhang depth",
+            "patch_depth": "How far the sun may reach into the room",
+            "min_position": "Lowest position when shading",
+            "dusk_lower": "Lower when the sun goes down",
+            "wait_for_hand_open": "Wait until it is raised by hand each day",
+            "room_temp_entity": "Room temperature",
+            "door_entity": "Door or window contact",
+            "pv_entity": "Solar panel power used as sun sensor",
+            "pv_peak": "Clear-sky peak of those panels",
+            "pv_azimuth": "Direction those panels face",
+            "pv_tilt": "Tilt of those panels"
+          },
+          "data_description": {
+            "azimuth": "Compass bearing: 90 is east, 180 south, 225 south-west.",
+            "glass_height": "From the floor to the top of the glass.",
+            "overhang": "How far a fixed overhang at the top of the glass sticks out. 0 for none.",
+            "patch_depth": "Used on days when the room is comfortable and only glare needs limiting.",
+            "min_position": "0 lets the blind close fully, which suits see-through fabric.",
+            "wait_for_hand_open": "Sets the starting value of the switch with the same name; the switch is what counts afterwards.",
+            "door_entity": "Optional. The blind is not moved while this is open.",
+            "pv_entity": "Optional. Pick the string that faces most like this window."
+          }
+        }
+      },
+      "abort": {
+        "reconfigure_successful": "Blind updated."
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "target": {
+        "name": "Target"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "active": "Active",
+          "observing": "Observe only",
+          "manual_hold": "Paused after manual move",
+          "waiting_for_hand_open": "Waiting to be raised by hand",
+          "outside_hours": "Outside active hours",
+          "door_open": "Door open",
+          "disabled": "Automatic control off",
+          "cover_unavailable": "Blind unavailable"
+        }
+      },
+      "day_type": {
+        "name": "Day type",
+        "state": {
+          "cool": "Cool",
+          "mild": "Mild",
+          "hot": "Hot"
+        }
+      }
+    },
+    "binary_sensor": {
+      "armed": {
+        "name": "Armed"
+      },
+      "sun_on_glass": {
+        "name": "Sun on glass"
+      }
+    },
+    "switch": {
+      "observe_only": {
+        "name": "Observe only"
+      },
+      "energy_saver": {
+        "name": "Energy saver"
+      },
+      "automatic": {
+        "name": "Automatic control"
+      },
+      "wait_for_hand_open": {
+        "name": "Wait for hand-open"
+      }
+    },
+    "number": {
+      "cool_day_max": {
+        "name": "Cool day below"
+      },
+      "hot_day_min": {
+        "name": "Hot day above"
+      },
+      "room_open_below": {
+        "name": "Room wants sun below"
+      },
+      "room_shade_above": {
+        "name": "Room wants shade above"
+      }
+    },
+    "button": {
+      "resume": {
+        "name": "Resume"
+      }
+    }
+  }
+}
