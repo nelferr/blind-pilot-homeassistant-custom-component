@@ -14,11 +14,15 @@ For each blind, once a minute:
 | No direct sun on the glass, or cloudy | Open |
 | Sun on the glass, cool day | Open, to let the heat in |
 | Sun on the glass, hot day | Down to the blind's lowest shading position |
-| Sun on the glass, mild day | Follows the room: open when cool, shade when warm, otherwise lowered just enough to keep the sun patch near the window |
+| Sun on the glass, mild day, cool outside right now | Open, to let the heat in |
+| Sun on the glass, mild day, otherwise | Follows the room: open when cool, shade when warm. In between, the blind is lowered just enough to keep the sun patch near the window, or stays open if glare limiting is off for that blind |
 | Sun has gone down | Lowered, where that is enabled for the blind |
 
-A day is cool, mild or hot from the forecast high. "Sun on the glass" comes from
-the sun's position, the direction the window faces and any fixed overhang above it.
+A day is cool, mild or hot from the highest temperature forecast or measured that
+day. "Cool outside right now" compares the outdoor temperature with the cool-day
+threshold, with a 1 degree margin so it does not flip back and forth. "Sun on the
+glass" comes from the sun's position, the direction the window faces and any fixed
+overhang above it.
 
 ## House rules
 

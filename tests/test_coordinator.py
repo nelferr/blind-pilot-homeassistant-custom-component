@@ -20,6 +20,7 @@ Clock = ha_stubs.Clock
 
 HUB = {
     const.CONF_WEATHER: "weather.home",
+    const.CONF_OUTDOOR_TEMP: "sensor.outdoor",
     const.CONF_BATTERY_SOC: "sensor.battery",
     const.CONF_START: "10:00:00",
     const.CONF_END: "23:00:00",
@@ -52,12 +53,12 @@ Q3 = {  # east window, see-through fabric, waits for a hand
 }
 
 
-def make_entry(options=None):
+def make_entry(options=None, q1=Q1):
     subentries = {
         blind_id: SimpleNamespace(
             subentry_id=blind_id, subentry_type=const.SUBENTRY_BLIND, title=data[const.CONF_NAME], data=data
         )
-        for blind_id, data in (("q1", Q1), ("q3", Q3))
+        for blind_id, data in (("q1", q1), ("q3", Q3))
     }
     return SimpleNamespace(entry_id="hub", data=HUB, options=options or {}, subentries=subentries)
 
@@ -69,6 +70,7 @@ class CoordinatorTest(unittest.IsolatedAsyncioTestCase):
         self.states = self.hass.states
         self.states.set("weather.home", "sunny", {"cloud_coverage": 10})
         self.states.set("sensor.battery", 50)
+        self.states.set("sensor.outdoor", 22)
         self.states.set("sensor.q1_temp", 24.5)
         self.states.set("sensor.q3_temp", 24.5)
         self.states.set("binary_sensor.q1_door", "off")
@@ -222,6 +224,52 @@ class CoordinatorTest(unittest.IsolatedAsyncioTestCase):
         snapshot = self.coordinator.blinds["q1"].snapshot
         self.assertTrue(snapshot.sunny)
         self.assertEqual(snapshot.sunny_source, "pv_throttled")
+
+    async def test_cool_evening_reopens_a_blind_that_glare_had_lowered(self):
+        # 6 October: low evening sun, comfortable room, then the air outside turns cool.
+        await self.tick()
+        await self.settle("q1", 100)
+        self.moves()
+        Clock.set_local(18, 0)
+        self.sun(13, 252)
+        await self.tick()
+        self.assertEqual(self.moves(), [("cover.q1", 15)])
+        await self.settle("q1", 15)
+        self.states.set("sensor.outdoor", 19.5)
+        await self.tick(minutes=15)
+        self.assertTrue(self.coordinator.cool_outside)
+        self.assertEqual(self.moves(), [("cover.q1", 100)])
+
+    async def test_cool_outside_does_not_open_a_blind_on_a_hot_day(self):
+        self.hass.services.forecast_high = 31.0
+        self.states.set("sensor.outdoor", 19.5)
+        self.sun(13, 252)
+        await self.tick()
+        self.assertEqual(self.coordinator.blinds["q1"].snapshot.target, 15)
+
+    async def test_blind_with_glare_limiting_off_stays_open_while_comfortable(self):
+        entry = make_entry(q1={**Q1, const.CONF_LIMIT_GLARE: False})
+        coordinator = BlindPilotCoordinator(self.hass, entry)
+        await coordinator.async_load()
+        self.sun(13, 252)
+        await coordinator.async_refresh()
+        self.assertEqual(coordinator.blinds["q1"].snapshot.target, 100)
+        self.states.set("sensor.q1_temp", 25.5)
+        await coordinator.async_refresh()
+        self.assertEqual(coordinator.blinds["q1"].snapshot.target, 15)
+
+    async def test_day_stays_hot_when_the_evening_forecast_shrinks(self):
+        self.hass.services.forecast_high = 31.0
+        await self.tick()
+        self.assertEqual(self.coordinator.day, "hot")
+        self.hass.services.forecast_high = 21.0
+        await self.tick(hours=1)
+        self.assertEqual(self.coordinator.day, "hot")
+        restarted = BlindPilotCoordinator(self.hass, make_entry())
+        restarted._store.data = self.coordinator._store.data
+        await restarted.async_load()
+        await restarted.async_refresh()
+        self.assertEqual(restarted.day, "hot")
 
     async def test_state_survives_a_restart(self):
         await self.tick()

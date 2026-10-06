@@ -86,6 +86,45 @@ class ThermalModeTest(unittest.TestCase):
         self.assertEqual(engine.thermal_mode(engine.DAY_MILD, 25.5, THRESHOLDS), engine.MODE_SHADE)
         self.assertEqual(engine.thermal_mode(engine.DAY_MILD, None, THRESHOLDS), engine.MODE_GLARE)
 
+    def test_cool_outside_makes_a_mild_day_want_heat(self):
+        mode = engine.thermal_mode(engine.DAY_MILD, 24.5, THRESHOLDS, cool_outside=True)
+        self.assertEqual(mode, engine.MODE_HEAT)
+        mode = engine.thermal_mode(engine.DAY_MILD, 26, THRESHOLDS, cool_outside=True)
+        self.assertEqual(mode, engine.MODE_SHADE)
+
+    def test_cool_outside_does_not_overrule_a_hot_day(self):
+        mode = engine.thermal_mode(engine.DAY_HOT, 22, THRESHOLDS, cool_outside=True)
+        self.assertEqual(mode, engine.MODE_SHADE)
+
+
+class CoolOutsideTest(unittest.TestCase):
+    def test_below_the_threshold_is_cool(self):
+        self.assertTrue(engine.cool_outside_now(19.5, 20, False))
+
+    def test_well_above_the_threshold_is_not(self):
+        self.assertFalse(engine.cool_outside_now(21.5, 20, True))
+
+    def test_inside_the_margin_keeps_the_previous_answer(self):
+        self.assertTrue(engine.cool_outside_now(20.5, 20, True))
+        self.assertFalse(engine.cool_outside_now(20.5, 20, False))
+
+    def test_unknown_temperature_is_not_cool(self):
+        self.assertFalse(engine.cool_outside_now(None, 20, True))
+
+
+class DayHighTest(unittest.TestCase):
+    def test_keeps_the_peak_as_the_forecast_shrinks(self):
+        high = engine.DayHigh()
+        self.assertEqual(high.update("2026-10-06", 22.5, 20.0), 22.5)
+        self.assertEqual(high.update("2026-10-06", 21.0, 20.5), 22.5)
+
+    def test_starts_again_each_day(self):
+        high = engine.DayHigh("2026-10-06", 28.0)
+        self.assertEqual(high.update("2026-10-07", 19.0, None), 19.0)
+
+    def test_no_readings_gives_nothing(self):
+        self.assertIsNone(engine.DayHigh().update("2026-10-06", None, None))
+
 
 class DecideTest(unittest.TestCase):
     def test_unknown_sun_position_changes_nothing(self):
@@ -136,6 +175,21 @@ class DecideTest(unittest.TestCase):
     def test_glare_leaves_the_blind_up_when_the_overhang_keeps_the_patch_short(self):
         # Profile angle 50 degrees: 0.32 m of sunlit glass reaches 0.27 m into the room.
         self.assertEqual(decide(SW_DOOR, elevation=50).target, 100)
+
+    def test_low_evening_sun_drives_glare_limiting_to_the_gap(self):
+        # 6 October, 18:00: the behaviour that prompted the two tests below.
+        self.assertEqual(decide(SW_DOOR, elevation=13, azimuth=252, room_temp=24.2).target, 15)
+
+    def test_cool_outside_opens_instead_of_limiting_glare(self):
+        decision = decide(SW_DOOR, elevation=13, azimuth=252, room_temp=24.2, cool_outside=True)
+        self.assertEqual(decision.target, 100)
+        self.assertEqual(decision.mode, engine.MODE_HEAT)
+
+    def test_glare_limiting_can_be_switched_off(self):
+        geometry = engine.BlindGeometry(azimuth=225, glass_height=2.7, overhang=2.0, limit_glare=False)
+        self.assertEqual(decide(geometry, elevation=13, azimuth=252).target, 100)
+        self.assertEqual(decide(geometry, elevation=13, azimuth=252, room_temp=25.5).target, 15)
+        self.assertEqual(decide(geometry, elevation=13, azimuth=252, day=engine.DAY_HOT).target, 15)
 
     def test_energy_saver_ignores_the_gap(self):
         decision = decide(SW_DOOR, elevation=20, day=engine.DAY_HOT, energy_saver=True)

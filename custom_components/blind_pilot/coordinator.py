@@ -27,6 +27,7 @@ from .const import (
     CONF_END,
     CONF_GLASS_HEIGHT,
     CONF_HOLD_HOURS,
+    CONF_LIMIT_GLARE,
     CONF_LUX,
     CONF_LUX_SUNNY,
     CONF_MIN_INTERVAL,
@@ -74,11 +75,13 @@ from .engine import (
     STATUS_UNAVAILABLE,
     BlindGeometry,
     BlindState,
+    DayHigh,
     Debouncer,
     Thresholds,
     apply_manual_move,
     assess_sunny,
     control_status,
+    cool_outside_now,
     day_type,
     decide,
     refresh_arming,
@@ -125,6 +128,7 @@ class BlindRuntime:
             patch_depth=float(conf.get(CONF_PATCH_DEPTH, 1)),
             min_position=int(conf.get(CONF_MIN_POSITION, 15)),
             dusk_lower=bool(conf.get(CONF_DUSK_LOWER, True)),
+            limit_glare=bool(conf.get(CONF_LIMIT_GLARE, True)),
         )
         self.state = BlindState()
         self.sunny = Debouncer(SUNNY_ON_DELAY, SUNNY_OFF_DELAY)
@@ -158,6 +162,9 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
         }
         self.day: str = DAY_MILD
         self.day_high: float | None = None
+        self.outdoor_temp: float | None = None
+        self.cool_outside = False
+        self._day_high = DayHigh()
         self._start = _parse_time(self.conf.get(CONF_START), DEFAULT_START)
         self._end = _parse_time(self.conf.get(CONF_END), DEFAULT_END)
         self._hold = timedelta(hours=float(self.conf.get(CONF_HOLD_HOURS, DEFAULT_HOLD_HOURS)))
@@ -176,6 +183,8 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
     async def async_load(self) -> None:
         """Restore settings and per-blind memory from storage."""
         stored = await self._store.async_load() or {}
+        peak = stored.get("day_high") or {}
+        self._day_high = DayHigh(peak.get("day"), peak.get("value"))
         self.settings.update(
             {k: v for k, v in stored.get("settings", {}).items() if k in DEFAULT_SETTINGS}
         )
@@ -244,11 +253,13 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
             azimuth = sun.attributes.get("azimuth")
 
         await self._async_refresh_forecast(now)
-        outdoor = self._float_state(self.conf.get(CONF_OUTDOOR_TEMP))
-        highs = [value for value in (self._forecast_high, outdoor) if value is not None]
-        self.day_high = max(highs) if highs else None
+        self.outdoor_temp = self._float_state(self.conf.get(CONF_OUTDOOR_TEMP))
+        self.day_high = self._day_high.update(today, self._forecast_high, self.outdoor_temp)
         thresholds = Thresholds(**{key: float(self.settings[key]) for key in THRESHOLD_SETTINGS})
         self.day = day_type(self.day_high, thresholds)
+        self.cool_outside = cool_outside_now(
+            self.outdoor_temp, thresholds.cool_day_max, self.cool_outside
+        )
 
         condition = cloud = None
         weather = self.hass.states.get(self.conf[CONF_WEATHER])
@@ -296,6 +307,7 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
                 sunny=sunny,
                 day=self.day,
                 room_temp=room_temp,
+                cool_outside=self.cool_outside,
                 energy_saver=energy_saver,
             )
 
@@ -443,6 +455,7 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
     def _data_to_save(self) -> dict[str, Any]:
         return {
             "settings": dict(self.settings),
+            "day_high": {"day": self._day_high.day, "value": self._day_high.value},
             "blinds": {
                 blind_id: {
                     BLIND_AUTOMATIC: blind.automatic,

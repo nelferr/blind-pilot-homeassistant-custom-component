@@ -66,6 +66,7 @@ class BlindGeometry:
     patch_depth: float = 1.0  # metres the sun may reach into the room
     min_position: int = 15  # lowest position used when shading
     dusk_lower: bool = True
+    limit_glare: bool = True  # False keeps the blind open while the room is comfortable
 
 
 @dataclass(frozen=True)
@@ -137,11 +138,26 @@ def day_type(day_high: float | None, thresholds: Thresholds) -> str:
     return DAY_MILD
 
 
-def thermal_mode(day: str, room_temp: float | None, thresholds: Thresholds) -> str:
+def cool_outside_now(
+    outdoor_temp: float | None, threshold: float, previous: bool, margin: float = 1.0
+) -> bool:
+    """Say whether it is cool outside right now, with a margin so it does not flip-flop."""
+    if outdoor_temp is None:
+        return False
+    if outdoor_temp < threshold:
+        return True
+    if outdoor_temp > threshold + margin:
+        return False
+    return previous
+
+
+def thermal_mode(
+    day: str, room_temp: float | None, thresholds: Thresholds, cool_outside: bool = False
+) -> str:
     """Decide whether sun on the glass should be let in, blocked or just tamed."""
     if day == DAY_HOT:
         return MODE_SHADE
-    if day == DAY_COOL:
+    if day == DAY_COOL or cool_outside:
         if room_temp is not None and room_temp > thresholds.room_shade_above + 0.5:
             return MODE_SHADE
         return MODE_HEAT
@@ -163,6 +179,7 @@ def decide(
     sunny: bool | None,
     day: str,
     room_temp: float | None,
+    cool_outside: bool = False,
     energy_saver: bool = False,
 ) -> Decision:
     """Return the position the rules want. An unknown sky is treated as sunny."""
@@ -190,7 +207,7 @@ def decide(
             return Decision(None, f"{why}: energy saver leaves it as it is", None)
         return Decision(0, f"{why}: energy saver keeps it closed", None)
 
-    mode = thermal_mode(day, room_temp, thresholds)
+    mode = thermal_mode(day, room_temp, thresholds, cool_outside)
     if mode == MODE_HEAT:
         return Decision(100, "Sun on the glass and heat is welcome: open", mode)
 
@@ -199,6 +216,9 @@ def decide(
         if sun.sunlit_height <= floor_height + MIN_SUNLIT_HEIGHT:
             return Decision(100, "Overhang shades everything above the gap: open", mode)
         return Decision(floor, "Sun on the glass and the room should stay cool: shading", mode)
+
+    if not geometry.limit_glare:
+        return Decision(100, "Room is comfortable: open", mode)
 
     # The blind's lower edge sets how high the sun can enter, and so how far it reaches.
     open_height = geometry.patch_depth * math.tan(math.radians(sun.profile_angle))
@@ -366,6 +386,29 @@ def _sunny_from_weather(condition: str | None, cloud_coverage: float | None) -> 
     if condition in _PARTLY_CONDITIONS:
         return cloud_coverage is None or cloud_coverage < _PARTLY_MAX_CLOUD
     return False
+
+
+@dataclass
+class DayHigh:
+    """The highest temperature expected or measured today.
+
+    A forecast for "today" only covers the hours still to come, so its high
+    shrinks through the evening. Keeping the peak stops the day type drifting.
+    """
+
+    day: str | None = None
+    value: float | None = None
+
+    def update(self, today: str, *readings: float | None) -> float | None:
+        """Feed the latest readings and return the day's peak so far."""
+        if self.day != today:
+            self.day = today
+            self.value = None
+        known = [reading for reading in readings if reading is not None]
+        if known:
+            peak = max(known)
+            self.value = peak if self.value is None else max(self.value, peak)
+        return self.value
 
 
 @dataclass

@@ -115,8 +115,12 @@ class DayTypeSensor(BlindPilotEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Show the temperature the day type came from."""
-        return {"expected_high": self.coordinator.day_high}
+        """Show the temperatures behind the day type and the cool-outside rule."""
+        return {
+            "expected_high": self.coordinator.day_high,
+            "outdoor_temperature": self.coordinator.outdoor_temp,
+            "cool_outside": self.coordinator.cool_outside,
+        }
 
 
 def _rounded(value: float | None, digits: int) -> float | None:
