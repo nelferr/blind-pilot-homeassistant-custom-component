@@ -134,6 +134,7 @@ class BlindRuntime:
         self.sunny = Debouncer(SUNNY_ON_DELAY, SUNNY_OFF_DELAY)
         self.automatic = True
         self.wait_for_hand = bool(conf.get(CONF_WAIT_FOR_HAND, True))
+        self.last_mode: str | None = None
         self.snapshot = BlindSnapshot()
 
 
@@ -308,8 +309,14 @@ class BlindPilotCoordinator(DataUpdateCoordinator[dict[str, BlindSnapshot]]):
                 day=self.day,
                 room_temp=room_temp,
                 cool_outside=self.cool_outside,
+                previous_mode=blind.last_mode,
                 energy_saver=energy_saver,
             )
+            # Remembered through cloud and shade, forgotten overnight.
+            if not in_window:
+                blind.last_mode = None
+            elif decision.mode is not None:
+                blind.last_mode = decision.mode
 
             door = self.hass.states.get(blind.conf.get(CONF_DOOR) or "")
             status = control_status(

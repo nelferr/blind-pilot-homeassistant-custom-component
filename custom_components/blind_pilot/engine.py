@@ -17,6 +17,7 @@ MIN_SUNLIT_HEIGHT = 0.05  # metres of sunlit glass that count as "sun on the gla
 POSITION_STEP = 5  # glare positions are rounded to this
 CLOSED_MAX = 2  # positions at or below this count as closed
 POSITION_TOLERANCE = 3  # smaller differences are not treated as a move
+ROOM_MARGIN = 0.5  # degrees a room must move back past a threshold to undo its effect
 
 MODE_HEAT = "heat"
 MODE_SHADE = "shade"
@@ -152,21 +153,40 @@ def cool_outside_now(
 
 
 def thermal_mode(
-    day: str, room_temp: float | None, thresholds: Thresholds, cool_outside: bool = False
+    day: str,
+    room_temp: float | None,
+    thresholds: Thresholds,
+    cool_outside: bool = False,
+    previous: str | None = None,
 ) -> str:
-    """Decide whether sun on the glass should be let in, blocked or just tamed."""
+    """Decide whether sun on the glass should be let in, blocked or just tamed.
+
+    `previous` is the mode last chosen for this blind. Once a room threshold has
+    been crossed, the room has to come back ROOM_MARGIN past it before the mode
+    changes again. Without that, a room sitting on a threshold flips the blind
+    every few minutes, and the blind's own effect on the room keeps it going.
+    """
     if day == DAY_HOT:
         return MODE_SHADE
     if day == DAY_COOL or cool_outside:
-        if room_temp is not None and room_temp > thresholds.room_shade_above + 0.5:
+        if room_temp is None:
+            return MODE_HEAT
+        limit = thresholds.room_shade_above + 0.5
+        if room_temp > limit:
+            return MODE_SHADE
+        if previous == MODE_SHADE and room_temp > limit - ROOM_MARGIN:
             return MODE_SHADE
         return MODE_HEAT
     if room_temp is None:
         return MODE_GLARE
-    if room_temp < thresholds.room_open_below:
-        return MODE_HEAT
     if room_temp > thresholds.room_shade_above:
         return MODE_SHADE
+    if previous == MODE_SHADE and room_temp > thresholds.room_shade_above - ROOM_MARGIN:
+        return MODE_SHADE
+    if room_temp < thresholds.room_open_below:
+        return MODE_HEAT
+    if previous == MODE_HEAT and room_temp < thresholds.room_open_below + ROOM_MARGIN:
+        return MODE_HEAT
     return MODE_GLARE
 
 
@@ -180,6 +200,7 @@ def decide(
     day: str,
     room_temp: float | None,
     cool_outside: bool = False,
+    previous_mode: str | None = None,
     energy_saver: bool = False,
 ) -> Decision:
     """Return the position the rules want. An unknown sky is treated as sunny."""
@@ -207,7 +228,7 @@ def decide(
             return Decision(None, f"{why}: energy saver leaves it as it is", None)
         return Decision(0, f"{why}: energy saver keeps it closed", None)
 
-    mode = thermal_mode(day, room_temp, thresholds, cool_outside)
+    mode = thermal_mode(day, room_temp, thresholds, cool_outside, previous_mode)
     if mode == MODE_HEAT:
         return Decision(100, "Sun on the glass and heat is welcome: open", mode)
 

@@ -258,6 +258,33 @@ class CoordinatorTest(unittest.IsolatedAsyncioTestCase):
         await coordinator.async_refresh()
         self.assertEqual(coordinator.blinds["q1"].snapshot.target, 15)
 
+    async def test_room_wobbling_on_the_shade_limit_moves_the_blind_once(self):
+        entry = make_entry(q1={**Q1, const.CONF_LIMIT_GLARE: False})
+        self.coordinator = BlindPilotCoordinator(self.hass, entry)
+        await self.coordinator.async_load()
+        await self.coordinator.async_set_setting(const.SETTING_OBSERVE_ONLY, False)
+        await self.tick(minutes=3)
+        await self.settle("q1", 100)
+        self.moves()
+        Clock.set_local(16, 30)
+        self.sun(20, 245)
+
+        async def run(rooms):
+            positions = []
+            for room in rooms:
+                self.states.set("sensor.q1_temp", room)
+                await self.tick(minutes=11)
+                for _, position in self.moves():
+                    positions.append(position)
+                    self.cover("q1", position)
+            return positions
+
+        self.assertEqual(await run((25.1, 24.8, 25.2, 24.9, 25.1, 24.8)), [15])
+        self.assertEqual(await run((24.4, 24.9)), [100])
+        Clock.set_local(23, 30)
+        await self.tick()
+        self.assertIsNone(self.coordinator.blinds["q1"].last_mode)
+
     async def test_day_stays_hot_when_the_evening_forecast_shrinks(self):
         self.hass.services.forecast_high = 31.0
         await self.tick()

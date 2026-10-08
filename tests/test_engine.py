@@ -96,6 +96,30 @@ class ThermalModeTest(unittest.TestCase):
         mode = engine.thermal_mode(engine.DAY_HOT, 22, THRESHOLDS, cool_outside=True)
         self.assertEqual(mode, engine.MODE_SHADE)
 
+    def test_shade_holds_until_the_room_is_half_a_degree_under_the_limit(self):
+        def mode(room, previous):
+            return engine.thermal_mode(engine.DAY_MILD, room, THRESHOLDS, previous=previous)
+
+        self.assertEqual(mode(24.9, engine.MODE_SHADE), engine.MODE_SHADE)
+        self.assertEqual(mode(24.4, engine.MODE_SHADE), engine.MODE_GLARE)
+        self.assertEqual(mode(24.9, engine.MODE_GLARE), engine.MODE_GLARE)
+
+    def test_heat_holds_until_the_room_is_half_a_degree_over_the_limit(self):
+        def mode(room, previous):
+            return engine.thermal_mode(engine.DAY_MILD, room, THRESHOLDS, previous=previous)
+
+        self.assertEqual(mode(24.2, engine.MODE_HEAT), engine.MODE_HEAT)
+        self.assertEqual(mode(24.6, engine.MODE_HEAT), engine.MODE_GLARE)
+        self.assertEqual(mode(24.2, engine.MODE_GLARE), engine.MODE_GLARE)
+
+    def test_cool_day_shade_holds_with_the_same_margin(self):
+        def mode(room, previous):
+            return engine.thermal_mode(engine.DAY_COOL, room, THRESHOLDS, previous=previous)
+
+        self.assertEqual(mode(25.3, engine.MODE_SHADE), engine.MODE_SHADE)
+        self.assertEqual(mode(24.9, engine.MODE_SHADE), engine.MODE_HEAT)
+        self.assertEqual(mode(25.3, engine.MODE_HEAT), engine.MODE_HEAT)
+
 
 class CoolOutsideTest(unittest.TestCase):
     def test_below_the_threshold_is_cool(self):
@@ -190,6 +214,18 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(decide(geometry, elevation=13, azimuth=252).target, 100)
         self.assertEqual(decide(geometry, elevation=13, azimuth=252, room_temp=25.5).target, 15)
         self.assertEqual(decide(geometry, elevation=13, azimuth=252, day=engine.DAY_HOT).target, 15)
+
+    def test_room_wobbling_on_the_shade_limit_does_not_flip_the_blind(self):
+        # 7 and 8 October: Q1 without glare limiting, room between 24.8 and 25.3,
+        # went from 15 % to fully open and back every ten minutes.
+        geometry = engine.BlindGeometry(azimuth=225, glass_height=2.7, overhang=2.0, limit_glare=False)
+        previous = None
+        targets = []
+        for room in (24.9, 25.1, 24.8, 25.2, 24.9, 24.4, 24.9, 25.1):
+            decision = decide(geometry, elevation=20, azimuth=245, room_temp=room, previous_mode=previous)
+            previous = decision.mode
+            targets.append(decision.target)
+        self.assertEqual(targets, [100, 15, 15, 15, 15, 100, 100, 15])
 
     def test_energy_saver_ignores_the_gap(self):
         decision = decide(SW_DOOR, elevation=20, day=engine.DAY_HOT, energy_saver=True)

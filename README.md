@@ -24,6 +24,9 @@ threshold, with a 1 degree margin so it does not flip back and forth. "Sun on th
 glass" comes from the sun's position, the direction the window faces and any fixed
 overhang above it.
 
+Room thresholds have a 0.5 degree margin: a blind that went into shade because the
+room passed its limit stays there until the room is half a degree back under it.
+
 ## House rules
 
 - **Active hours.** Blinds are only moved between the start and end time (10:00 to
