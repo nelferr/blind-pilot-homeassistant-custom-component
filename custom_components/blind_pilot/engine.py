@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 import math
 
-MIN_ELEVATION = 2.0  # degrees; at or below this the day is treated as over
+MIN_ELEVATION = 2.0  # degrees; at or below this the sun is too low to count as on the glass
+DUSK_ELEVATION = -7.0  # degrees; below this, about half an hour after sunset, it is night
 MAX_SIDE_ANGLE = 85.0  # degrees between the sun and the window normal
 MIN_SUNLIT_HEIGHT = 0.05  # metres of sunlit glass that count as "sun on the glass"
 POSITION_STEP = 5  # glare positions are rounded to this
@@ -209,7 +210,7 @@ def decide(
 
     floor = 0 if energy_saver else geometry.min_position
 
-    if elevation <= MIN_ELEVATION:
+    if elevation <= DUSK_ELEVATION:
         if energy_saver or geometry.dusk_lower:
             return Decision(0, "Sun is down: lowered", None)
         return Decision(None, "Sun is down: left as it is", None)

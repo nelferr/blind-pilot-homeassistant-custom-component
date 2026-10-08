@@ -207,7 +207,7 @@ class CoordinatorTest(unittest.IsolatedAsyncioTestCase):
         await self.tick(minutes=1)
         self.moves()
         Clock.set_local(19, 30)
-        self.sun(-2, 265)
+        self.sun(-8, 270)
         await self.tick()
         await self.tick()
         self.assertEqual(self.moves(), [("cover.q1", 0)])

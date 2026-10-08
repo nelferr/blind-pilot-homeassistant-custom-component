@@ -155,11 +155,14 @@ class DecideTest(unittest.TestCase):
         self.assertIsNone(decide(EAST, elevation=None).target)
 
     def test_dusk_lowers_only_where_enabled(self):
-        self.assertEqual(decide(SW_DOOR, elevation=-3).target, 0)
-        self.assertIsNone(decide(EAST, elevation=-3).target)
+        self.assertEqual(decide(SW_DOOR, elevation=-8).target, 0)
+        self.assertIsNone(decide(EAST, elevation=-8).target)
 
-    def test_last_light_counts_as_dusk_so_the_blind_does_not_bounce_open(self):
-        self.assertEqual(decide(SW_DOOR, elevation=1.5, day=engine.DAY_HOT).target, 0)
+    def test_blind_stays_open_through_sunset_and_twilight(self):
+        # 8 October: Q1 was lowered twelve minutes before sunset.
+        self.assertEqual(decide(SW_DOOR, elevation=1.5, day=engine.DAY_HOT).target, 100)
+        self.assertEqual(decide(SW_DOOR, elevation=-5).target, 100)
+        self.assertEqual(decide(SW_DOOR, elevation=-7.5).target, 0)
 
     def test_no_sun_on_the_glass_opens(self):
         self.assertEqual(decide(EAST, azimuth=250).target, 100)
@@ -237,7 +240,7 @@ class DecideTest(unittest.TestCase):
         self.assertIsNone(decide(EAST, azimuth=250, energy_saver=True).target)
 
     def test_energy_saver_lowers_at_night_everywhere(self):
-        self.assertEqual(decide(EAST, elevation=-3, energy_saver=True).target, 0)
+        self.assertEqual(decide(EAST, elevation=-8, energy_saver=True).target, 0)
 
 
 class ArmingTest(unittest.TestCase):
